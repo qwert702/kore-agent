@@ -1,0 +1,34 @@
+# 环境变量 / 密钥
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+
+# SQLite 数据库
+*.db
+
+# 日志
+logs/
+
+# PID 文件
+*.pid
+
+# 系统文件
+desktop.ini
+Thumbs.db
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# pytest
+.pytest_cache/
+
+# 项目数据（数据库已在上面排除）
+data/
