@@ -15,9 +15,13 @@ def get_client() -> OpenAI:
     global _client
     if _client is None:
         api_key = settings.openai_api_key or settings.openai_base_url
-        if not settings.openai_api_key:
+        if not api_key:
             raise RuntimeError(
                 "OPENAI_API_KEY 未设置，请在 .env 文件中配置或设置环境变量"
+            )
+        if api_key == settings.openai_base_url:
+            raise RuntimeError(
+                "OPENAI_API_KEY 未设置，当前值误用了 base_url"
             )
         _client = OpenAI(
             api_key=settings.openai_api_key,

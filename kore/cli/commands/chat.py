@@ -82,13 +82,16 @@ async def _repl_loop() -> None:
 
     while True:
         try:
-            # 输入
-            if sys.platform == "win32" and sys.stdout.encoding.upper() in (
-                "GBK", "GB2312", "GB18030", "CP936"
-            ):
-                user_input = input("kore> ")
-            else:
-                user_input = input("kore> ")
+            # ── 横线框住用户输入内容 ──
+            _SEP = "-" * 50
+            import sys
+            # 先画两条横线，光标回到中间空行
+            sys.stdout.write(f"\n{_SEP}\n\n{_SEP}\033[1A\r")
+            sys.stdout.flush()
+            # 用 prompt_toolkit 在中间空行接受输入（异步版本）
+            from prompt_toolkit import PromptSession
+            _pt_session = PromptSession()
+            user_input = await _pt_session.prompt_async("> ")
 
             if not user_input.strip():
                 continue
@@ -120,13 +123,16 @@ async def _repl_loop() -> None:
                 print(f"\n{result}\n")
                 continue
 
-            # AI 对话
+            # ── AI 对话 ──
             try:
                 reply, history = await run_chat_stream(user_input, history=history)
-                # 流式输出已在 run_chat_stream 中完成，这里不再打印
+                # 流式输出已在 run_chat_stream 中完成
             except UnicodeEncodeError:
                 reply, history = await run_chat_stream(user_input, history=history)
             except Exception as e:
+                print(f"\r{' ' * 50}\r", end="")
+                print(f"{_SEP}")
+                print()
                 error(f"对话错误: {e}")
                 logger.error("REPL error: %s", e, exc_info=True)
                 continue

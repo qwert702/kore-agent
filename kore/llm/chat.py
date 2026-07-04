@@ -260,7 +260,10 @@ async def run_chat_stream(
     if _is_identity_question(user_input):
         history.append({"role": "user", "content": user_input})
         history.append({"role": "assistant", "content": _KORE_IDENTITY})
-        print(f"\n{_KORE_IDENTITY}\n")
+        # 保持对话风格缩进
+        _safe_print("\n  ")
+        _safe_print(_KORE_IDENTITY.replace("\n", "\n  "))
+        print()
         return _KORE_IDENTITY, history
 
     history.append({"role": "user", "content": user_input})
@@ -312,12 +315,14 @@ async def run_chat_stream(
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if delta and delta.content:
                     content = delta.content
-                    # 第一个字符时关闭动画
+                    # 第一个字符时关闭动画并添加缩进
                     if first_chunk:
                         spinner.stop()
                         first_chunk = False
+                        _safe_print("  ")
                     full_text += content
-                    _safe_print(content)
+                    # 换行时自动续上缩进（对话风格）
+                    _safe_print(content.replace("\n", "\n  "))
 
             # 如果全空也关闭
             if first_chunk:

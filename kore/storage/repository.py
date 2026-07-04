@@ -90,6 +90,8 @@ class TaskRepository:
         )
         self.session.execute(stmt)
         self.session.flush()
+        # 清除 ORM 缓存中的 Task 对象，确保下次读取从数据库获取最新数据
+        self.session.expire_all()
         return self.get_task(task_id)
 
     def delete_task(self, task_id: int) -> bool:

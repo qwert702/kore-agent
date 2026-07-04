@@ -5,7 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# 项目根目录（基于本文件位置计算，不受 CWD 影响）
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_ENV_FILE = _PROJECT_ROOT / ".env"
 
 
 class Settings(BaseSettings):
@@ -13,7 +18,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="AGENT_",
-        env_file=".env",
+        env_file=_ENV_FILE,  # 使用绝对路径，不受 CWD 影响
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -50,36 +55,26 @@ class Settings(BaseSettings):
     # --- 二期 Web ---
     web_host: str = "127.0.0.1"
     web_port: int = 18081
-    web_secret_key: str = "change-me-in-production"
+    web_secret_key: str = ""  # 必须通过环境变量 AGENT_WEB_SECRET_KEY 设置，空值时 Web 服务启动将报错
 
     # --- LLM / AI ---
-    # 优先从 AGENT_OPENAI_API_KEY 读取，也兼容标准 OPENAI_API_KEY
-    openai_api_key: str = ""
-    openai_base_url: str = "https://api.deepseek.com"
-    openai_model: str = "deepseek-v4-flash"
+    # 兼容 AGENT_ 前缀和标准的 OPENAI_ 前缀
+    openai_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("AGENT_OPENAI_API_KEY", "OPENAI_API_KEY"),
+    )
+    openai_base_url: str = Field(
+        default="https://api.deepseek.com",
+        validation_alias=AliasChoices("AGENT_OPENAI_BASE_URL", "OPENAI_BASE_URL"),
+    )
+    openai_model: str = Field(
+        default="deepseek-v4-flash",
+        validation_alias=AliasChoices("AGENT_OPENAI_MODEL", "OPENAI_MODEL"),
+    )
     llm_max_history: int = 20
 
 
 settings = Settings()
-
-# --- 兼容直接的环境变量读取（不依赖 AGENT_ 前缀）---
-# 从项目根目录读取 .env
-_env_candidates = [
-    Path(__file__).resolve().parent.parent.parent / ".env",  # 项目根目录（最可靠）
-    Path(".env"),
-]
-for _env_file in _env_candidates:
-    if _env_file.exists():
-        for _line in _env_file.read_text(encoding="utf-8").splitlines():
-            _line = _line.strip()
-            if _line and not _line.startswith("#") and "=" in _line:
-                _k, _v = _line.split("=", 1)
-                if _k == "OPENAI_API_KEY" and not settings.openai_api_key:
-                    settings.openai_api_key = _v
-                elif _k == "OPENAI_BASE_URL" and (not settings.openai_base_url or settings.openai_base_url == "https://api.deepseek.com"):
-                    settings.openai_base_url = _v
-                elif _k == "OPENAI_MODEL" and (not settings.openai_model or settings.openai_model == "deepseek-v4-flash"):
-                    settings.openai_model = _v
 
 # 确保数据目录和日志目录存在（基于项目根目录）
 _project_root = Path(__file__).resolve().parent.parent.parent

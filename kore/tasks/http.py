@@ -4,10 +4,52 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
 from kore.tasks.base import BaseTask, TaskResult
+
+
+# 禁止请求的内网地址前缀列表（SSRF 防护）
+_BLOCKED_HOST_PREFIXES = [
+    "127.", "10.", "172.16.", "172.17.", "172.18.", "172.19.",
+    "172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
+    "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
+    "172.30.", "172.31.", "192.168.", "0.",
+    "169.254.",  # 链路本地
+    "::1", "::", "0:0:0:0:0:0:0:1",  # IPv6 回环
+]
+
+_BLOCKED_HOSTS_EXACT = [
+    "localhost",
+    "localhost.localdomain",
+]
+
+
+def _validate_url(url: str) -> None:
+    """验证 URL 目标地址，禁止请求内网/回环地址（SSRF 防护）
+
+    Args:
+        url: 要验证的 URL
+    Raises:
+        ValueError: 如果 URL 目标被禁止
+    """
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+
+    # 精确匹配
+    if hostname.lower() in _BLOCKED_HOSTS_EXACT:
+        raise ValueError(f"禁止请求内网/回环地址: {hostname}")
+
+    # 前缀匹配（IPv4 和 IPv6）
+    for prefix in _BLOCKED_HOST_PREFIXES:
+        if hostname.startswith(prefix):
+            raise ValueError(f"禁止请求内网/回环地址: {hostname}")
+
+    # 仅允许 http/https 协议
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"不支持的协议: {parsed.scheme}")
 
 
 class HTTPTask(BaseTask):
@@ -35,6 +77,16 @@ class HTTPTask(BaseTask):
             )
 
         self.logger.info("HTTP %s %s", method, url)
+
+        # SSRF 防护校验
+        try:
+            _validate_url(url)
+        except ValueError as e:
+            return TaskResult(
+                success=False,
+                stderr=str(e),
+                error_message=str(e),
+            )
 
         valid_methods = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
         if method not in valid_methods:

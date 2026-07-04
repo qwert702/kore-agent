@@ -8,6 +8,7 @@ __pycache__/
 *.egg
 dist/
 build/
+.venv/
 
 # SQLite 数据库
 *.db
