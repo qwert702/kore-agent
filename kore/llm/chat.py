@@ -311,25 +311,92 @@ async def run_chat_stream(
     model = get_model()
 
     # ── 思考阶段 ──
-    print("\n   思考中...", flush=True)
+    # 先用流式 API 获取思考内容和工具调用决策
+    thinking_stream = client.chat.completions.create(
+        model=model,
+        messages=history,
+        tools=TOOLS,
+        tool_choice="auto",
+        temperature=0.3,
+        max_tokens=2048,
+        stream=True,
+    )
 
-    # --- 非流式第一轮（工具调用必须用非流式）---
+    thinking_content = ""
+    tool_call_buffer: dict[int, dict] = {}
+    response_content = ""
+    response_tool_calls: list[Any] = []
+    had_thinking = False
+
+    # 用来决定是否显示"思考中" — 如果 AI 有 reasoning/thinking 字段就显示
+    print("\n   ", end="", flush=True)
+
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=history,
-            tools=TOOLS,
-            tool_choice="auto",
-            temperature=0.3,
-            max_tokens=2048,
-        )
+        for chunk in thinking_stream:
+            delta = chunk.choices[0].delta if chunk.choices else None
+            if delta is None:
+                continue
+
+            # 流式输出思考内容（任何文本都实时显示）
+            if delta.content:
+                if not had_thinking:
+                    had_thinking = True
+                _safe_print(delta.content)
+                thinking_content += delta.content
+                response_content += delta.content
+
+            # 收集工具调用
+            if delta.tool_calls:
+                for tc_delta in delta.tool_calls:
+                    idx = tc_delta.index
+                    if idx not in tool_call_buffer:
+                        tool_call_buffer[idx] = {
+                            "id": tc_delta.id or "",
+                            "function": {"name": "", "arguments": ""},
+                        }
+                    if tc_delta.id:
+                        tool_call_buffer[idx]["id"] = tc_delta.id
+                    if tc_delta.function:
+                        if tc_delta.function.name:
+                            tool_call_buffer[idx]["function"]["name"] += tc_delta.function.name
+                        if tc_delta.function.arguments:
+                            tool_call_buffer[idx]["function"]["arguments"] += tc_delta.function.arguments
+
     except Exception:
         raise
 
-    # 清除思考行
-    print("\r" + " " * 50 + "\r", end="", flush=True)
+    # 清除思考行（如果有思考内容则不覆盖）
+    if not had_thinking:
+        print("\r" + " " * 50 + "\r", end="", flush=True)
+    else:
+        # 确保最后换行
+        print(flush=True)
 
-    message = response.choices[0].message
+    # 构建完整的 tool_calls 对象
+    if tool_call_buffer:
+        response_tool_calls = []
+        for idx in sorted(tool_call_buffer.keys()):
+            buf = tool_call_buffer[idx]
+            # 创建类似 OpenAI 返回的 tool_call 对象
+            from openai.types.chat.chat_completion_message import FunctionCall
+            response_tool_calls.append(
+                ChatCompletionMessageToolCall(
+                    id=buf["id"],
+                    type="function",
+                    function=FunctionCall(
+                        name=buf["function"]["name"],
+                        arguments=buf["function"]["arguments"],
+                    ),
+                )
+            )
+
+    # 构造 message 对象（后续流程需要的格式）
+    from openai.types.chat.chat_completion_message import ChatCompletionMessage
+    message = ChatCompletionMessage(
+        role="assistant",
+        content=response_content or None,
+        tool_calls=response_tool_calls if response_tool_calls else None,
+    )
 
     # --- 流式输出辅助函数 ---
     async def _stream_response(messages: list[dict]) -> str:
