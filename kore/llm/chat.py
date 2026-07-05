@@ -5,9 +5,18 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-import threading
 import time
 from typing import Any
+
+from openai.types.chat import ChatCompletionMessageToolCall
+
+from kore.llm.client import get_client, get_model, check_available
+from kore.llm.tool_handlers import call_tool
+from kore.llm.tools import TOOLS
+from kore.utils.config import settings
+from kore.utils.logger import get_logger
+
+logger = get_logger("chat")
 
 
 def _safe_print(text: str) -> None:
@@ -26,65 +35,6 @@ def _safe_println(text: str) -> None:
     except UnicodeEncodeError:
         safe = text.encode("gbk", errors="replace").decode("gbk", errors="replace")
         print(safe, flush=True)
-
-
-class SpiderSpinner:
-    """蜘蛛加载动画 - 在另一个线程中运行的跳动蜘蛛
-
-    使用 GBK 兼容的 ASCII 字符，帧动画让蜘蛛在"织网"。
-    启动后会在终端显示：  [o O o O]  蜘蛛思考中...
-    """
-
-    def __init__(self, text: str = " 蜘蛛思考中") -> None:
-        self._text = text
-        self._running = False
-        self._thread: threading.Thread | None = None
-        # GBK 安全的动画帧：蜘蛛八条腿交替
-        self._frames = [
-            r"  [\/] ",
-            r"  [O]  ",
-            r"  [/\] ",
-            r"  [o]  ",
-        ]
-        self._idx = 0
-
-    def _animate(self) -> None:
-        """后台动画循环"""
-        while self._running:
-            frame = self._frames[self._idx % len(self._frames)]
-            line = f"\r{frame} {self._text}"
-            # GBK 安全写入
-            try:
-                print(line, end="", flush=True)
-            except UnicodeEncodeError:
-                safe = line.encode("gbk", errors="replace").decode("gbk", errors="replace")
-                print(safe, end="", flush=True)
-            self._idx += 1
-            time.sleep(0.25)
-
-    def start(self) -> None:
-        """启动动画"""
-        self._running = True
-        self._thread = threading.Thread(target=self._animate, daemon=True)
-        self._thread.start()
-
-    def stop(self) -> None:
-        """停止动画并清除行"""
-        self._running = False
-        if self._thread:
-            self._thread.join(timeout=0.5)
-        # 清除当前行
-        print("\r" + " " * 50 + "\r", end="", flush=True)
-
-from openai.types.chat import ChatCompletionMessageToolCall
-
-from kore.llm.client import get_client, get_model, check_available
-from kore.llm.tool_handlers import call_tool
-from kore.llm.tools import TOOLS
-from kore.utils.config import settings
-from kore.utils.logger import get_logger
-
-logger = get_logger("chat")
 
 
 # ── 身份问题硬拦截 ──────────────────────────────────────────
@@ -157,6 +107,79 @@ SYSTEM_PROMPT = """你叫 kore，是一个强大的自动化任务 AI 助手。
 5. **保持简洁**：不要啰嗦，用 Markdown 格式清晰呈现
 6. **失败处理**：工具调用失败时，给用户可以理解的错误提示
 """
+
+
+# ── 工具描述映射（用于终端展示）──
+_TOOL_DESCRIPTIONS: dict[str, str] = {
+    "task_list": "获取任务列表",
+    "task_add": "创建新任务",
+    "task_get": "查看任务详情",
+    "task_run": "执行任务",
+    "task_pause": "暂停任务",
+    "task_resume": "恢复任务",
+    "task_delete": "删除任务",
+    "task_logs": "查看执行日志",
+    "daemon_status": "检查守护进程状态",
+    "file_write": "创建代码文件",
+    "bash_run": "执行命令",
+}
+
+
+def _show_tool_call(name: str, args: dict[str, Any]) -> None:
+    """显示工具调用的详细描述（类 Claude Code 风格）"""
+    desc = _TOOL_DESCRIPTIONS.get(name, name)
+
+    if name == "file_write":
+        filename = args.get("filename", "untitled")
+        print(f"\n  > 创建文件: {filename}", flush=True)
+    elif name == "bash_run":
+        cmd = args.get("command", "")
+        print(f"\n  > 执行: {cmd}", flush=True)
+    elif name == "task_add":
+        task_name = args.get("name", "")
+        task_type = args.get("task_type", "")
+        print(f"\n  > {desc}: [{task_type}] {task_name}", flush=True)
+    elif name == "task_run":
+        tid = args.get("task_id", "")
+        print(f"\n  > {desc}: #{tid}", flush=True)
+    elif name == "task_get":
+        tid = args.get("task_id", "")
+        print(f"\n  > {desc}: #{tid}", flush=True)
+    elif name == "task_logs":
+        tid = args.get("task_id", "")
+        print(f"\n  > {desc}: #{tid}", flush=True)
+    elif name == "task_delete":
+        tid = args.get("task_id", "")
+        print(f"\n  > {desc}: #{tid}", flush=True)
+    else:
+        print(f"\n  > {desc}...", flush=True)
+
+
+def _show_tool_result(name: str, result_text: str) -> None:
+    """显示工具执行结果的摘要"""
+    # 取第一行作为摘要
+    first_line = result_text.split("\n")[0][:80]
+    if first_line.startswith("[OK]"):
+        print(f"  [OK] {first_line[5:]}", flush=True)
+    elif first_line.startswith("[X]"):
+        print(f"  [X] {first_line[5:]}", flush=True)
+    elif first_line.startswith("[-]") or first_line.startswith("[||]") or first_line.startswith(">"):
+        pass  # 这些已经有标记
+    else:
+        if len(result_text) < 120:
+            print(f"  -> {result_text}", flush=True)
+
+
+def _show_file_preview(filename: str, content: str) -> None:
+    """显示文件内容预览（前 8 行）"""
+    lines = content.split("\n")
+    preview_lines = lines[:8]
+    print(f"  │ {'─' * 40}", flush=True)
+    for line in preview_lines:
+        _safe_print(f"  │ {line}\n")
+    if len(lines) > 8:
+        print(f"  │ ... ({len(lines)} 行总)", flush=True)
+    print(f"  │ {'─' * 40}", flush=True)
 
 
 async def run_chat(
@@ -272,7 +295,6 @@ async def run_chat_stream(
     if _is_identity_question(user_input):
         history.append({"role": "user", "content": user_input})
         history.append({"role": "assistant", "content": _KORE_IDENTITY})
-        # 保持对话风格缩进
         _safe_print("\n  ")
         _safe_print(_KORE_IDENTITY.replace("\n", "\n  "))
         print()
@@ -288,9 +310,8 @@ async def run_chat_stream(
     client = get_client()
     model = get_model()
 
-    # 启动蜘蛛加载动画
-    spinner = SpiderSpinner()
-    spinner.start()
+    # ── 思考阶段 ──
+    print("\n   思考中...", flush=True)
 
     # --- 非流式第一轮（工具调用必须用非流式）---
     try:
@@ -302,16 +323,17 @@ async def run_chat_stream(
             temperature=0.3,
             max_tokens=2048,
         )
-    finally:
-        spinner.stop()
+    except Exception:
+        raise
+
+    # 清除思考行
+    print("\r" + " " * 50 + "\r", end="", flush=True)
 
     message = response.choices[0].message
 
     # --- 流式输出辅助函数 ---
     async def _stream_response(messages: list[dict]) -> str:
         """流式输出并返回完整文本"""
-        spinner = SpiderSpinner(" 蜘蛛打字中...")
-        spinner.start()
         try:
             stream = client.chat.completions.create(
                 model=model,
@@ -327,40 +349,18 @@ async def run_chat_stream(
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if delta and delta.content:
                     content = delta.content
-                    # 第一个字符时关闭动画并添加缩进
                     if first_chunk:
-                        spinner.stop()
                         first_chunk = False
                         _safe_print("  ")
                     full_text += content
-                    # 换行时自动续上缩进（对话风格）
                     _safe_print(content.replace("\n", "\n  "))
 
-            # 如果全空也关闭
-            if first_chunk:
-                spinner.stop()
             return full_text
         except Exception:
-            spinner.stop()
             raise
 
     if message.tool_calls:
-        # 显示工具调用提示
-        for tc in message.tool_calls:
-            fn_name = tc.function.name
-            fn_desc = {
-                "task_list": "获取任务列表",
-                "task_add": "创建任务",
-                "task_get": "查看任务详情",
-                "task_run": "执行任务",
-                "task_delete": "删除任务",
-                "task_pause": "暂停任务",
-                "task_resume": "恢复任务",
-                "task_logs": "查看执行日志",
-                "daemon_status": "检查守护进程状态",
-            }.get(fn_name, fn_name)
-            print(f"\n  > {fn_desc}...", flush=True)
-
+        # ── 执行工具调用 ──
         # 保存 assistant 消息（含 tool_calls）
         history.append({
             "role": "assistant",
@@ -386,7 +386,32 @@ async def run_chat_stream(
             except json.JSONDecodeError:
                 args = {}
 
+            # 显示工具调用（claude code 风格）
+            _show_tool_call(name, args)
+
+            # 如果是 file_write，先显示文件内容预览
+            if name == "file_write":
+                content = args.get("content", "")
+                _show_file_preview(args.get("filename", ""), content)
+
+            # 如果是 bash_run，显示命令
+            elif name == "bash_run":
+                cmd = args.get("command", "")
+                print(f"  $ {cmd}", flush=True)
+
             result_text = await call_tool(name, args)
+
+            # 显示工具结果
+            _show_tool_result(name, result_text)
+
+            # bash_run 显示完整输出
+            if name == "bash_run":
+                # 跳过第一行（摘要），显示详细输出
+                lines = result_text.split("\n")
+                if len(lines) > 1:
+                    for line in lines[1:]:
+                        if line.strip():
+                            print(f"  {line}", flush=True)
 
             history.append({
                 "role": "tool",
