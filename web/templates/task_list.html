@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}任务列表 - Kore{% endblock %}
+{% block title %}{{ _('Task List') }} - Kore{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h2><i class="bi bi-list-task"></i> 任务列表</h2>
+  <h2><i class="bi bi-list-task"></i> {{ _('Task List') }}</h2>
   <a href="/tasks/new" class="btn btn-primary">
-    <i class="bi bi-plus-lg"></i> 新建任务
+    <i class="bi bi-plus-lg"></i> {{ _('New Task') }}
   </a>
 </div>
 
@@ -15,13 +15,13 @@
       <table class="table table-dark table-hover mb-0">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>名称</th>
-            <th>类型</th>
-            <th>调度</th>
-            <th>状态</th>
-            <th>最近执行</th>
-            <th>操作</th>
+            <th>{{ _('ID') }}</th>
+            <th>{{ _('Name') }}</th>
+            <th>{{ _('Type') }}</th>
+            <th>{{ _('Schedule') }}</th>
+            <th>{{ _('Status') }}</th>
+            <th>{{ _('Last Run') }}</th>
+            <th>{{ _('Actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -41,32 +41,32 @@
             <td class="text-muted small">{{ t.last_run or '-' }}</td>
             <td>
               <div class="btn-group btn-group-sm">
-                <a href="/tasks/{{ t.id }}" class="btn btn-outline-info" title="详情">
+                <a href="/tasks/{{ t.id }}" class="btn btn-outline-info" title="{{ _('Details') }}">
                   <i class="bi bi-eye"></i>
                 </a>
-                <a href="/tasks/{{ t.id }}/edit" class="btn btn-outline-secondary" title="编辑">
+                <a href="/tasks/{{ t.id }}/edit" class="btn btn-outline-secondary" title="{{ _('Edit') }}">
                   <i class="bi bi-pencil"></i>
                 </a>
                 <form method="post" action="/tasks/{{ t.id }}/run" class="d-inline">
-                  <button type="submit" class="btn btn-outline-success" title="执行">
+                  <button type="submit" class="btn btn-outline-success" title="{{ _('Run') }}">
                     <i class="bi bi-play-fill"></i>
                   </button>
                 </form>
                 {% if t.status == 'active' %}
                 <form method="post" action="/tasks/{{ t.id }}/pause" class="d-inline">
-                  <button type="submit" class="btn btn-outline-warning" title="暂停">
+                  <button type="submit" class="btn btn-outline-warning" title="{{ _('Paused') }}">
                     <i class="bi bi-pause-fill"></i>
                   </button>
                 </form>
                 {% else %}
                 <form method="post" action="/tasks/{{ t.id }}/resume" class="d-inline">
-                  <button type="submit" class="btn btn-outline-success" title="恢复">
+                  <button type="submit" class="btn btn-outline-success" title="{{ _('Active') }}">
                     <i class="bi bi-play-fill"></i>
                   </button>
                 </form>
                 {% endif %}
-                <form method="post" action="/tasks/{{ t.id }}/delete" class="d-inline" onsubmit="return confirm('确定要删除任务「{{ t.name }}」吗？')">
-                  <button type="submit" class="btn btn-outline-danger" title="删除">
+                <form method="post" action="/tasks/{{ t.id }}/delete" class="d-inline" onsubmit="return confirm('{{ _('Confirm delete task') }}「{{ t.name }}」？')">
+                  <button type="submit" class="btn btn-outline-danger" title="{{ _('Delete') }}">
                     <i class="bi bi-trash"></i>
                   </button>
                 </form>
@@ -80,8 +80,8 @@
     {% else %}
     <div class="text-center py-5 text-muted">
       <i class="bi bi-inbox" style="font-size:3rem"></i>
-      <p class="mt-2">暂无任务</p>
-      <a href="/tasks/new" class="btn btn-primary">新建第一个任务</a>
+      <p class="mt-2">{{ _('No tasks') }}</p>
+      <a href="/tasks/new" class="btn btn-primary">{{ _('Create Your First Task') }}</a>
     </div>
     {% endif %}
   </div>

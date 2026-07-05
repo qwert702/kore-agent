@@ -27,6 +27,7 @@ SyncSessionLocal = sessionmaker(
     bind=sync_engine,
     autocommit=False,
     autoflush=False,
+    expire_on_commit=False,  # 防止 detached 后访问属性报 DetachedInstanceError
 )
 
 
@@ -99,8 +100,32 @@ async def get_async_session() -> AsyncGenerator[Any, None]:
 
 
 def init_db() -> None:
-    """初始化数据库表（同步操作）"""
+    """初始化数据库表（同步操作）+ 自动迁移新增字段"""
     Base.metadata.create_all(sync_engine)
+    _migrate_schema()
+
+
+def _migrate_schema() -> None:
+    """自动迁移：为已有表添加缺失的列（SQLite ALTER TABLE ADD COLUMN）"""
+    from sqlalchemy import text as sa_text
+
+    migrations = [
+        # 链式触发字段
+        ("tasks", "trigger_condition", "VARCHAR(16)"),
+        ("tasks", "trigger_task_id", "INTEGER REFERENCES tasks(id)"),
+        # 通知关联字段
+        ("tasks", "notify_on_success", "BOOLEAN DEFAULT 0"),
+        ("tasks", "notify_on_failure", "BOOLEAN DEFAULT 1"),
+        ("tasks", "notify_channel_ids", "VARCHAR(256) DEFAULT ''"),
+    ]
+
+    with sync_engine.connect() as conn:
+        for table, column, col_type in migrations:
+            try:
+                conn.execute(sa_text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+                conn.commit()
+            except Exception:
+                conn.rollback()
 
 
 async def init_async_db() -> None:

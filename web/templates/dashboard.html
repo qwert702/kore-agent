@@ -1,9 +1,14 @@
 {% extends "base.html" %}
-{% block title %}仪表盘 - Kore{% endblock %}
+{% block title %}{{ _('Dashboard') }} - Kore{% endblock %}
 {% block content %}
 <div class="row mb-4">
-  <div class="col-12">
-    <h2><i class="bi bi-speedometer2"></i> 仪表盘</h2>
+  <div class="col-12 d-flex justify-content-between align-items-center">
+    <h2 class="mb-0"><i class="bi bi-speedometer2"></i> {{ _('Dashboard Page') }}</h2>
+    <button class="btn btn-sm btn-outline-secondary" onclick="toggleLang()" title="切换语言 / Switch Language">
+      <span class="fw-bold {% if current_lang() == 'zh' %}text-primary{% else %}text-muted{% endif %}">中</span>
+      <span class="mx-1 text-muted">/</span>
+      <span class="fw-bold {% if current_lang() == 'en' %}text-primary{% else %}text-muted{% endif %}">EN</span>
+    </button>
   </div>
 </div>
 
@@ -12,7 +17,7 @@
     <div class="card bg-dark border-primary h-100">
       <div class="card-body text-center">
         <h1 class="text-primary mb-0">{{ stats.total }}</h1>
-        <small class="text-muted">总任务数</small>
+        <small class="text-muted">{{ _('Total Tasks') }}</small>
       </div>
     </div>
   </div>
@@ -20,7 +25,7 @@
     <div class="card bg-dark border-success h-100">
       <div class="card-body text-center">
         <h1 class="text-success mb-0">{{ stats.active }}</h1>
-        <small class="text-muted">运行中</small>
+        <small class="text-muted">{{ _('Active') }}</small>
       </div>
     </div>
   </div>
@@ -28,7 +33,7 @@
     <div class="card bg-dark border-warning h-100">
       <div class="card-body text-center">
         <h1 class="text-warning mb-0">{{ stats.paused }}</h1>
-        <small class="text-muted">已暂停</small>
+        <small class="text-muted">{{ _('Paused') }}</small>
       </div>
     </div>
   </div>
@@ -36,7 +41,7 @@
     <div class="card bg-dark border-info h-100">
       <div class="card-body text-center">
         <h1 class="text-info mb-0">{{ stats.today_runs }}</h1>
-        <small class="text-muted">今日执行</small>
+        <small class="text-muted">{{ _("Today's Runs") }}</small>
       </div>
     </div>
   </div>
@@ -46,7 +51,7 @@
   <div class="col-md-8">
     <div class="card">
       <div class="card-header">
-        <i class="bi bi-clock-history"></i> 最近执行记录
+        <i class="bi bi-clock-history"></i> {{ _('Recent Runs') }}
       </div>
       <div class="card-body p-0">
         {% if recent_runs %}
@@ -54,12 +59,12 @@
           <table class="table table-dark table-hover mb-0">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>任务</th>
-                <th>状态</th>
-                <th>触发方式</th>
-                <th>时间</th>
-                <th>操作</th>
+                <th>{{ _('ID') }}</th>
+                <th>{{ _('Tasks') }}</th>
+                <th>{{ _('Status') }}</th>
+                <th>{{ _('Trigger') }}</th>
+                <th>{{ _('Time') }}</th>
+                <th>{{ _('Actions') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -75,7 +80,7 @@
                 <td>{{ run.trigger }}</td>
                 <td class="text-muted small">{{ run.started_at }}</td>
                 <td>
-                  <a href="/runs/{{ run.id }}" class="btn btn-sm btn-outline-secondary">详情</a>
+                  <a href="/runs/{{ run.id }}" class="btn btn-sm btn-outline-secondary">{{ _('Details') }}</a>
                 </td>
               </tr>
               {% endfor %}
@@ -83,7 +88,7 @@
           </table>
         </div>
         {% else %}
-        <div class="text-center py-4 text-muted">暂无执行记录</div>
+        <div class="text-center py-4 text-muted">{{ _('No run records') }}</div>
         {% endif %}
       </div>
     </div>
@@ -91,22 +96,22 @@
   <div class="col-md-4">
     <div class="card">
       <div class="card-header">
-        <i class="bi bi-info-circle"></i> 系统信息
+        <i class="bi bi-info-circle"></i> {{ _('System Info') }}
       </div>
       <div class="card-body">
         <dl class="mb-0">
-          <dt>调度器</dt>
+          <dt>{{ _('Scheduler') }}</dt>
           <dd>
             {% if scheduler_running %}
-              <span class="badge bg-success">运行中</span>
-              <small class="text-muted">({{ scheduled_jobs }} 个任务)</small>
+              <span class="badge bg-success">{{ _('Running') }}</span>
+              <small class="text-muted">({{ scheduled_jobs }} {{ _('of') }})</small>
             {% else %}
-              <span class="badge bg-secondary">未启动</span>
+              <span class="badge bg-secondary">{{ _('Not Running') }}</span>
             {% endif %}
           </dd>
-          <dt class="mt-2">守护进程端口</dt>
+          <dt class="mt-2">{{ _('Daemon Port') }}</dt>
           <dd>{{ daemon_port }}</dd>
-          <dt class="mt-2">数据库</dt>
+          <dt class="mt-2">{{ _('Database') }}</dt>
           <dd class="text-muted small">SQLite</dd>
         </dl>
       </div>

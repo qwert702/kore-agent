@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     scheduler_reload_interval: int = 60  # 秒
     scheduler_timezone: str = "Asia/Shanghai"
 
+    # --- 数据保留 ---
+    data_retention_days: int = 90
+    max_runs_per_task: int = 1000
+
     # --- 任务执行 ---
     task_default_timeout: int = 300  # 5 分钟
     task_max_concurrent: int = 10
@@ -55,7 +59,8 @@ class Settings(BaseSettings):
     # --- 二期 Web ---
     web_host: str = "127.0.0.1"
     web_port: int = 18081
-    web_secret_key: str = ""  # 必须通过环境变量 AGENT_WEB_SECRET_KEY 设置，空值时 Web 服务启动将报错
+    web_secret_key: str = ""  # Session 签名密钥，必须通过环境变量 AGENT_WEB_SECRET_KEY 设置
+    web_admin_password: str = ""  # Web 管理密码，默认同 web_secret_key；可通过 AGENT_WEB_ADMIN_PASSWORD 单独设置
 
     # --- LLM / AI ---
     # 兼容 AGENT_ 前缀和标准的 OPENAI_ 前缀

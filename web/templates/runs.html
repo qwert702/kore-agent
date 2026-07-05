@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}全部运行记录 - Kore{% endblock %}
+{% block title %}{{ _('All Run Records') }} - Kore{% endblock %}
 {% block content %}
-<h2><i class="bi bi-clock-history"></i> 全部执行记录</h2>
+<h2><i class="bi bi-clock-history"></i> {{ _('All Run Records') }}</h2>
 <div class="card mt-3">
   <div class="card-body p-0">
     {% if runs %}
@@ -9,13 +9,13 @@
       <table class="table table-dark table-hover mb-0">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>任务</th>
-            <th>状态</th>
-            <th>触发</th>
-            <th>开始时间</th>
-            <th>耗时</th>
-            <th>操作</th>
+            <th>{{ _('ID') }}</th>
+            <th>{{ _('Tasks') }}</th>
+            <th>{{ _('Status') }}</th>
+            <th>{{ _('Trigger') }}</th>
+            <th>{{ _('Time') }}</th>
+            <th>{{ _('Duration') }}</th>
+            <th>{{ _('Actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -30,15 +30,15 @@
             </td>
             <td>{{ r.trigger }}</td>
             <td class="text-muted small">{{ r.started_at }}</td>
-            <td>{{ r.duration_ms }}ms</td>
-            <td><a href="/runs/{{ r.id }}" class="btn btn-sm btn-outline-secondary">详情</a></td>
+            <td>{{ r.duration_ms }}{{ _('ms') }}</td>
+            <td><a href="/runs/{{ r.id }}" class="btn btn-sm btn-outline-secondary">{{ _('Details') }}</a></td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
     {% else %}
-    <div class="text-center py-4 text-muted">暂无执行记录</div>
+    <div class="text-center py-4 text-muted">{{ _('No run records') }}</div>
     {% endif %}
   </div>
 </div>

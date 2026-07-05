@@ -46,7 +46,7 @@ class SchedulerEngine:
         return f"sqlite:///{db_path}"
 
     async def start(self) -> None:
-        """启动调度器"""
+        """启动调度器 + 崩溃恢复"""
         if not HAS_APSCHEDULER:
             logger.warning("APScheduler 未安装，跳过调度器启动")
             return
@@ -54,6 +54,16 @@ class SchedulerEngine:
         if self._running:
             logger.warning("调度器已在运行")
             return
+
+        # 崩溃恢复：标记所有 RUNNING 状态的任务为 FAILED
+        try:
+            with get_sync_session() as session:
+                repo = TaskRepository(session)
+                recovered = repo.mark_running_as_failed()
+                if recovered:
+                    logger.warning("崩溃恢复：已将 %d 个正在运行的任务标记为 FAILED", recovered)
+        except Exception as e:
+            logger.warning("崩溃恢复检查失败: %s", e)
 
         jobstore = SQLAlchemyJobStore(url=self._get_jobstore_url())
 

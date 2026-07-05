@@ -1,8 +1,10 @@
-"""HTTP 请求任务"""
+"""HTTP 请求任务 — SSRF 防护加固版"""
 
 from __future__ import annotations
 
+import ipaddress
 import json
+import socket
 from typing import Any
 from urllib.parse import urlparse
 
@@ -11,20 +13,42 @@ import httpx
 from kore.tasks.base import BaseTask, TaskResult
 
 
-# 禁止请求的内网地址前缀列表（SSRF 防护）
-_BLOCKED_HOST_PREFIXES = [
-    "127.", "10.", "172.16.", "172.17.", "172.18.", "172.19.",
-    "172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
-    "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
-    "172.30.", "172.31.", "192.168.", "0.",
-    "169.254.",  # 链路本地
-    "::1", "::", "0:0:0:0:0:0:0:1",  # IPv6 回环
-]
+def _is_private_ip(host: str) -> bool:
+    """检查主机名解析后的 IP 是否属于内网/回环地址
 
-_BLOCKED_HOSTS_EXACT = [
-    "localhost",
-    "localhost.localdomain",
-]
+    支持 IPv4 和 IPv6，解决 DNS 重绑定攻击问题。
+    """
+    # 先检查 hostname 本身是否是内网前缀（快速路径）
+    _private_prefixes = (
+        "127.", "10.", "172.16.", "172.17.", "172.18.", "172.19.",
+        "172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
+        "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
+        "172.30.", "172.31.", "192.168.", "0.",
+        "169.254.",
+        "::1", "::", "0:0:0:0:0:0:0:1",
+        "fe80:", "fc00:", "fd00:",  # IPv6 链路本地 + 唯一本地
+    )
+    _exact_hosts = {"localhost", "localhost.localdomain"}
+
+    host_lower = host.lower().strip()
+    if host_lower in _exact_hosts:
+        return True
+    for prefix in _private_prefixes:
+        if host_lower.startswith(prefix):
+            return True
+
+    # DNS 解析后检查所有解析到的 IP
+    try:
+        addrs = socket.getaddrinfo(host, 80, family=socket.AF_UNSPEC, type=socket.SOCK_STREAM)
+        for addr in addrs:
+            ip_str = addr[4][0]
+            ip = ipaddress.ip_address(ip_str)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast:
+                return True
+    except (socket.gaierror, OSError, ValueError):
+        pass  # DNS 解析失败，让 httpx 层处理
+
+    return False
 
 
 def _validate_url(url: str) -> None:
@@ -38,18 +62,13 @@ def _validate_url(url: str) -> None:
     parsed = urlparse(url)
     hostname = parsed.hostname or ""
 
-    # 精确匹配
-    if hostname.lower() in _BLOCKED_HOSTS_EXACT:
-        raise ValueError(f"禁止请求内网/回环地址: {hostname}")
-
-    # 前缀匹配（IPv4 和 IPv6）
-    for prefix in _BLOCKED_HOST_PREFIXES:
-        if hostname.startswith(prefix):
-            raise ValueError(f"禁止请求内网/回环地址: {hostname}")
-
     # 仅允许 http/https 协议
     if parsed.scheme not in ("http", "https"):
         raise ValueError(f"不支持的协议: {parsed.scheme}")
+
+    # IP 级校验（含 DNS 解析）
+    if _is_private_ip(hostname):
+        raise ValueError(f"禁止请求内网/回环地址: {hostname}")
 
 
 class HTTPTask(BaseTask):
@@ -78,7 +97,7 @@ class HTTPTask(BaseTask):
 
         self.logger.info("HTTP %s %s", method, url)
 
-        # SSRF 防护校验
+        # SSRF 防护校验（首次）
         try:
             _validate_url(url)
         except ValueError as e:
@@ -96,11 +115,21 @@ class HTTPTask(BaseTask):
                 error_message=f"Invalid method: {method}",
             )
 
+        # 重定向追踪的 SSRF 校验
+        async def _check_redirect(request: httpx.Request) -> None:
+            """每次重定向时校验目标 URL"""
+            redirect_url = str(request.url)
+            try:
+                _validate_url(redirect_url)
+            except ValueError as e:
+                raise httpx.InvalidURL(str(e))
+
         try:
             async with httpx.AsyncClient(
                 verify=verify_ssl,
                 follow_redirects=follow_redirects,
                 timeout=httpx.Timeout(timeout),
+                event_hooks={"request": [_check_redirect]} if follow_redirects else None,
             ) as client:
                 response = await client.request(
                     method=method,
@@ -135,6 +164,12 @@ class HTTPTask(BaseTask):
                     },
                 )
 
+        except httpx.InvalidURL as e:
+            return TaskResult(
+                success=False,
+                stderr=f"重定向目标地址被拒绝: {e}",
+                error_message=str(e),
+            )
         except httpx.TimeoutException:
             return TaskResult(
                 success=False,

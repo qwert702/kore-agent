@@ -123,13 +123,13 @@ async def login_submit(request: Request) -> HTMLResponse:
     form = await request.form()
     password = form.get("password", "")
 
-    from web.auth import verify_password
-    if verify_password(password):
+    from web.auth import get_client_ip, verify_password
+    client_ip = get_client_ip(request)
+    if verify_password(password, client_ip):
         request.session["authenticated"] = True
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/", status_code=303)
 
-    from starlette.responses import RedirectResponse
     return TEMPLATES.TemplateResponse(request, "login.html", {"error": ""}, status_code=401)
 
 
