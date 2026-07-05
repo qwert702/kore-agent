@@ -27,12 +27,10 @@ app.add_typer(web_app, name="web", help="Web 管理界面（启动）")
 
 
 def _show_banner(web_url: str = "") -> None:
-    """显示酷炫的 ASCII 启动界面"""
+    """显示 ASCII 启动界面"""
     from rich.console import Console
     from rich.panel import Panel
-    from rich.table import Table
     from rich import box
-    from rich.layout import Layout
 
     console = Console()
 
@@ -67,35 +65,51 @@ def _show_banner(web_url: str = "") -> None:
     console.print(panel)
 
 
-@app.callback(invoke_without_command=True)
-def main_callback(
-    ctx: typer.Context,
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="详细日志输出"),
-) -> None:
-    """kore - 自动化任务编排引擎"""
-    if verbose:
-        import logging
+def _startup_progress() -> str:
+    """显示 Rich 进度条动画，返回 Web URL（如果可用）"""
+    from rich.console import Console
+    from rich.progress import (
+        Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn,
+    )
+    from rich import box
 
-        from kore.utils.logger import setup_logger
+    console = Console()
+    web_url = ""
 
-        setup_logger("agent").setLevel(logging.DEBUG)
+    with Progress(
+        SpinnerColumn(spinner_name="dots"),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(bar_width=30, complete_style="green", finished_style="green"),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        console=console,
+        transient=True,  # 完成后自动清除进度条
+    ) as progress:
 
-    # 自动初始化数据库
-    init_db()
+        # 步骤 1: 数据库初始化
+        task1 = progress.add_task("[cyan]数据库初始化...", total=100)
+        progress.update(task1, advance=50)
+        from kore.storage.db import init_db
+        init_db()
+        progress.update(task1, completed=100)
 
-    # 无参数 + 非管道输入 → 进入 REPL
-    if ctx.invoked_subcommand is None and sys.stdin.isatty():
-        from kore.utils.logger import set_console_silent
+        # 步骤 2: 引擎注册（trigger + notifier）
+        task2 = progress.add_task("[cyan]引擎注册...", total=100)
+        progress.update(task2, advance=50)
+        try:
+            from kore.core.trigger import register_trigger_handlers
+            register_trigger_handlers()
+        except Exception:
+            pass
+        try:
+            from kore.core.notifier import register_notify_handlers
+            register_notify_handlers()
+        except Exception:
+            pass
+        progress.update(task2, completed=100)
 
-        # 静默日志控制台输出
-        set_console_silent(True)
-
-        # 确保项目根目录在 sys.path 中
-        _project_root = Path(__file__).resolve().parent.parent.parent
-        if str(_project_root) not in sys.path:
-            sys.path.insert(0, str(_project_root))
-
-        web_url = ""
+        # 步骤 3: Web 服务启动
+        task3 = progress.add_task("[cyan]Web 服务启动...", total=100)
+        progress.update(task3, advance=20)
         from kore.utils.config import settings
         if settings.web_secret_key:
             import threading
@@ -104,9 +118,9 @@ def main_callback(
 
             def _start_web() -> None:
                 try:
-                    app = create_app()
+                    web_app_inst = create_app()
                     uvicorn.run(
-                        app,
+                        web_app_inst,
                         host=settings.web_host,
                         port=settings.web_port,
                         log_level="error",
@@ -116,11 +130,55 @@ def main_callback(
 
             web_thread = threading.Thread(target=_start_web, daemon=True)
             web_thread.start()
+            progress.update(task3, advance=60)
             import time
             time.sleep(0.8)
             web_url = f"http://{settings.web_host}:{settings.web_port}"
 
-        # 显示酷炫启动面板
+        progress.update(task3, completed=100)
+
+        # 步骤 4: 调度器加载
+        task4 = progress.add_task("[cyan]调度器加载...", total=100)
+        try:
+            from kore.core.scheduler import scheduler
+            if scheduler.is_running:
+                progress.update(task4, advance=50)
+                _ = scheduler.list_jobs()
+        except Exception:
+            pass
+        progress.update(task4, completed=100)
+
+    return web_url
+
+
+@app.callback(invoke_without_command=True)
+def main_callback(
+    ctx: typer.Context,
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="详细日志输出"),
+) -> None:
+    """kore - 自动化任务编排引擎"""
+    if verbose:
+        import logging
+        from kore.utils.logger import setup_logger
+        setup_logger("agent").setLevel(logging.DEBUG)
+
+    # 无参数 + 非管道输入 → 进入 REPL
+    if ctx.invoked_subcommand is None and sys.stdin.isatty():
+        # 静默日志控制台输出（必须在任何日志输出之前）
+        from kore.utils.logger import set_console_silent
+        set_console_silent(True)
+        from kore.utils.config import settings
+        settings.log_console_silent = True
+
+        # 确保项目根目录在 sys.path 中
+        _project_root = Path(__file__).resolve().parent.parent.parent
+        if str(_project_root) not in sys.path:
+            sys.path.insert(0, str(_project_root))
+
+        # 进度条动画显示启动过程
+        web_url = _startup_progress()
+
+        # 显示 ASCII 启动面板
         _show_banner(web_url)
 
         from kore.cli.commands.chat import _repl_loop

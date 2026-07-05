@@ -33,3 +33,4 @@ Thumbs.db
 
 # 项目数据（数据库已在上面排除）
 data/
+generated/
