@@ -377,16 +377,14 @@ async def run_chat_stream(
         response_tool_calls = []
         for idx in sorted(tool_call_buffer.keys()):
             buf = tool_call_buffer[idx]
-            # 创建类似 OpenAI 返回的 tool_call 对象
-            from openai.types.chat.chat_completion_message import FunctionCall
             response_tool_calls.append(
                 ChatCompletionMessageToolCall(
                     id=buf["id"],
                     type="function",
-                    function=FunctionCall(
-                        name=buf["function"]["name"],
-                        arguments=buf["function"]["arguments"],
-                    ),
+                    function={
+                        "name": buf["function"]["name"],
+                        "arguments": buf["function"]["arguments"],
+                    },
                 )
             )
 
