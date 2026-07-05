@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
+from pathlib import Path
 from typing import Any, Callable, Coroutine
 
 from kore.core.executor import execute_task
@@ -72,6 +75,72 @@ def _task_to_dict(t: Any) -> dict:
 
 
 # --- 工具处理器实现 ---
+
+
+@register("file_write")
+async def handle_file_write(filename: str, content: str, description: str = "") -> str:
+    """在 generated/ 目录下写入文件"""
+    from kore.utils.config import settings
+
+    generated_dir = settings.project_root / "generated"
+    generated_dir.mkdir(parents=True, exist_ok=True)
+
+    # 路径安全校验：防止目录遍历
+    safe_name = Path(filename).name  # 只取文件名，忽略路径
+    filepath = generated_dir / safe_name
+
+    # 只在 generated/ 目录下写
+    if not str(filepath.resolve()).startswith(str(generated_dir.resolve())):
+        return f"错误：只能在 generated/ 目录下写入文件"
+
+    try:
+        file_content = content
+        if description:
+            ext = Path(safe_name).suffix
+            comment_char = "#" if ext in (".py", ".sh", ".yaml", ".yml") else "//"
+            file_content = f"{comment_char} {description}\n{content}"
+
+        filepath.write_text(file_content, encoding="utf-8")
+        return f"[OK] 文件已创建: generated/{safe_name} ({filepath.stat().st_size} 字节)\n{description}"
+    except Exception as e:
+        return f"写入文件失败: {e}"
+
+
+@register("bash_run")
+async def handle_bash_run(command: str, timeout: int = 30) -> str:
+    """执行一条 bash 命令"""
+    # 安全黑名单
+    dangerous = [
+        "rm -rf /", "rm -rf /*", "mkfs", "dd if=", "> /dev/sda",
+        ":(){ :|:& };:", "chmod -R 000 /", "wget", "curl",
+    ]
+    for d in dangerous:
+        if d in command.lower():
+            return f"错误：禁止执行危险命令"
+
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(Path(__file__).resolve().parent.parent.parent),
+        )
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(), timeout=timeout
+        )
+        out = stdout.decode("utf-8", errors="replace")[:2000]
+        err = stderr.decode("utf-8", errors="replace")[:2000]
+
+        result = f"返回码: {proc.returncode}"
+        if out:
+            result += f"\n\n标准输出:\n```\n{out}\n```"
+        if err:
+            result += f"\n\n标准错误:\n```\n{err}\n```"
+        return result
+    except asyncio.TimeoutError:
+        return f"命令执行超时（{timeout}秒）"
+    except Exception as e:
+        return f"命令执行失败: {e}"
 
 
 @register("task_list")

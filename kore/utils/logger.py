@@ -13,6 +13,16 @@ from typing import Any
 from kore.utils.config import settings
 
 
+# ── REPL 静默控制台模式 ────────────────────────────────
+_console_silent = False
+
+
+def set_console_silent(silent: bool) -> None:
+    """设置控制台静默模式（REPL 模式下隐藏 JSON 日志）"""
+    global _console_silent
+    _console_silent = silent
+
+
 class JSONFormatter(logging.Formatter):
     """输出 JSON 格式的日志"""
 
@@ -38,18 +48,19 @@ def setup_logger(name: str = "agent") -> logging.Logger:
     logger.setLevel(settings.log_level.upper())
     logger.handlers.clear()
 
-    # 控制台输出（始终有）
-    console_handler = logging.StreamHandler(sys.stdout)
-    if settings.log_format == "json":
-        console_handler.setFormatter(JSONFormatter())
-    else:
-        console_handler.setFormatter(
-            logging.Formatter(
-                "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S",
+    # 控制台输出（默认有，REPL 模式下静音）
+    if not _console_silent and not settings.log_console_silent:
+        console_handler = logging.StreamHandler(sys.stdout)
+        if settings.log_format == "json":
+            console_handler.setFormatter(JSONFormatter())
+        else:
+            console_handler.setFormatter(
+                logging.Formatter(
+                    "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                )
             )
-        )
-    logger.addHandler(console_handler)
+        logger.addHandler(console_handler)
 
     # 文件输出（可配置）
     log_file = settings.logs_dir / "agent.log"

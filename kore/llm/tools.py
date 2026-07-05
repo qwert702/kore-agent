@@ -9,6 +9,52 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "file_write",
+            "description": "在 generated/ 目录下创建或覆写一个文件。可以用来生成 Python 游戏、脚本、HTML 页面等任何代码文件",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string",
+                        "description": "文件名（如 game.py、index.html）。会自动放到 generated/ 目录下",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "文件内容（代码）",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "这个文件是做什么的（用于文件头注释）",
+                    },
+                },
+                "required": ["filename", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "bash_run",
+            "description": "在终端执行一条非交互式命令并获取输出。适合运行 pip install、python game.py 等",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "要执行的 bash 命令",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "超时秒数（默认 30）",
+                    },
+                },
+                "required": ["command"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "task_list",
             "description": "列出所有已创建的任务，可按状态（active/paused/disabled）或类型（shell/python/http）筛选",
             "parameters": {
