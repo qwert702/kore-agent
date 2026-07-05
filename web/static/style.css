@@ -1,0 +1,42 @@
+/* Kore Web 界面自定义样式 */
+
+body {
+  background-color: #1a1a2e;
+  min-height: 100vh;
+}
+
+.card {
+  border-radius: 0.5rem;
+}
+
+.card-header {
+  font-weight: 500;
+}
+
+pre {
+  background-color: #0d1117;
+  border-radius: 0.25rem;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.table th {
+  border-top: none;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.btn-group-sm .btn {
+  padding: 0.2rem 0.4rem;
+}
+
+.navbar-brand {
+  font-size: 1.3rem;
+}
+
+.badge {
+  font-weight: 500;
+}

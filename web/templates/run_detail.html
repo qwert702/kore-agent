@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}运行记录 #{{ run.id }} - Kore{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>运行记录 #{{ run.id }}</h2>
+  <a href="/tasks/{{ run.task_id }}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> 返回任务
+  </a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header">基本信息</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-3">任务</dt>
+          <dd class="col-sm-9"><a href="/tasks/{{ run.task_id }}">{{ run.task_name }}</a></dd>
+          <dt class="col-sm-3">状态</dt>
+          <dd class="col-sm-9">
+            <span class="badge bg-{{ 'success' if run.status == 'success' else 'danger' if run.status == 'failed' else 'warning' if run.status in ('pending','running') else 'secondary' }}">
+              {{ run.status }}
+            </span>
+          </dd>
+          <dt class="col-sm-3">触发方式</dt>
+          <dd class="col-sm-9">{{ run.trigger }}</dd>
+          <dt class="col-sm-3">开始时间</dt>
+          <dd class="col-sm-9 text-muted">{{ run.started_at }}</dd>
+          <dt class="col-sm-3">耗时</dt>
+          <dd class="col-sm-9">{{ run.duration_ms }} ms</dd>
+          <dt class="col-sm-3">退出码</dt>
+          <dd class="col-sm-9">{{ run.exit_code or '-' }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if run.stdout %}
+<div class="card mb-3">
+  <div class="card-header text-success">
+    <i class="bi bi-file-text"></i> stdout
+  </div>
+  <div class="card-body p-0">
+    <pre class="mb-0 p-3"><code>{{ run.stdout[:5000] }}</code></pre>
+    {% if run.stdout|length > 5000 %}<div class="text-center text-muted small p-2">... 已截断 (共 {{ run.stdout|length }} 字符)</div>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if run.stderr %}
+<div class="card mb-3">
+  <div class="card-header text-danger">
+    <i class="bi bi-exclamation-triangle"></i> stderr
+  </div>
+  <div class="card-body p-0">
+    <pre class="mb-0 p-3"><code>{{ run.stderr[:5000] }}</code></pre>
+    {% if run.stderr|length > 5000 %}<div class="text-center text-muted small p-2">... 已截断 (共 {{ run.stderr|length }} 字符)</div>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if run.error_message %}
+<div class="card mb-3">
+  <div class="card-header text-danger">
+    <i class="bi bi-bug"></i> 错误
+  </div>
+  <div class="card-body">
+    <pre class="mb-0 text-danger"><code>{{ run.error_message }}</code></pre>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑' if task else '新建' }}任务 - Kore{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <h2>{{ '编辑任务' if task else '新建任务' }}</h2>
+    <div class="card mt-3">
+      <div class="card-body">
+        <form method="post" action="{{ '/tasks/' + task.id|string if task else '/tasks' }}">
+          {% if task %}<input type="hidden" name="_method" value="PUT">{% endif %}
+
+          <div class="mb-3">
+            <label for="name" class="form-label">名称 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="name" name="name" value="{{ task.name if task else '' }}" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="description" class="form-label">描述</label>
+            <textarea class="form-control" id="description" name="description" rows="2">{{ task.description if task else '' }}</textarea>
+          </div>
+
+          <div class="mb-3">
+            <label for="task_type" class="form-label">类型 <span class="text-danger">*</span></label>
+            <select class="form-select" id="task_type" name="task_type" required>
+              {% for t in ['shell', 'http', 'python'] %}
+              <option value="{{ t }}" {{ 'selected' if task and task.task_type == t }}>{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="config" class="form-label">配置 (JSON)</label>
+            <textarea class="form-control font-monospace" id="config" name="config" rows="4">{{ task.config if task else '{}' }}</textarea>
+            <div class="form-text text-muted">
+              shell: {"command": "echo hello"}<br>
+              http: {"url": "https://...", "method": "GET"}<br>
+              python: {"code": "print('hello')"}
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label for="schedule_type" class="form-label">调度类型</label>
+              <select class="form-select" id="schedule_type" name="schedule_type">
+                <option value="">无</option>
+                <option value="cron" {{ 'selected' if task and task.schedule_type == 'cron' }}>Cron</option>
+                <option value="interval" {{ 'selected' if task and task.schedule_type == 'interval' }}>Interval</option>
+                <option value="date" {{ 'selected' if task and task.schedule_type == 'date' }}>Date</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label for="schedule_expr" class="form-label">调度表达式</label>
+              <input type="text" class="form-control" id="schedule_expr" name="schedule_expr" value="{{ task.schedule_expr if task else '' }}" placeholder="*/5 * * * *">
+            </div>
+            <div class="col-md-4">
+              <label for="timeout" class="form-label">超时 (秒)</label>
+              <input type="number" class="form-control" id="timeout" name="timeout" value="{{ task.timeout if task else 300 }}" min="1">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="tags" class="form-label">标签 (逗号分隔)</label>
+            <input type="text" class="form-control" id="tags" name="tags" value="{{ task.tags if task else '' }}" placeholder="backup, daily">
+          </div>
+
+          <div class="d-flex justify-content-between">
+            <a href="/tasks" class="btn btn-secondary">取消</a>
+            <button type="submit" class="btn btn-primary">{{ '保存' if task else '创建' }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
